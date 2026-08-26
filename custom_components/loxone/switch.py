@@ -6,6 +6,7 @@ https://github.com/JoDehli/PyLoxone
 """
 
 import logging
+from functools import cached_property
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
@@ -72,6 +73,13 @@ async def async_setup_entry(
 
                     new_switch = LoxoneIntercomSubControl(**_)
                     entities.append(new_switch)
+
+    for light_controller in get_all(loxconfig, ["LightControllerV2"]):
+        light_controller = add_room_and_cat_to_value_values(
+            loxconfig, light_controller
+        )
+        if "presence" in light_controller.get("states", {}):
+            entities.append(LoxoneLightControllerPresenceSwitch(**light_controller))
 
     async_add_entities(entities)
 
@@ -247,6 +255,89 @@ class LoxoneSwitch(LoxoneEntity, SwitchEntity):
         return {
             "uuid": self.uuidAction,
             "state_uuid": self.states["active"],
+            "room": self.room,
+            "category": self.cat,
+            "device_type": self.type,
+            "platform": "loxone",
+        }
+
+
+class LoxoneLightControllerPresenceSwitch(LoxoneEntity, SwitchEntity):
+    """Presence-automation toggle for a Loxone LightControllerV2.
+
+    This is not a separate Loxone control. It targets the parent Light
+    Controller's own uuidAction with the `presence/0` / `presence/1`
+    commands (the same commands the Loxone app itself sends from the
+    control's "Activate presence detection" setting), and tracks the
+    controller's "presence" sub-state, which is already present in the
+    structure file but otherwise unused by this integration.
+    """
+
+    _attr_available = False
+    _attr_is_on: bool | None = None
+    _attr_state: None = None
+    _attr_assumed_state: None = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._attr_state = STATE_UNKNOWN
+        self._attr_is_on = STATE_UNKNOWN
+        self._icon = "mdi:motion-sensor"
+        self._presence_uuid = self.states["presence"]
+        self._attr_name = f"{self._attr_name} Presence Detection"
+
+        self.type = "LightControllerV2"
+        self._attr_device_info = get_or_create_device(
+            self.uuidAction, kwargs["name"], self.type, self.room
+        )
+
+    @cached_property
+    def unique_id(self) -> str:
+        """Return a unique ID distinct from the parent light entity."""
+        return f"{self.uuidAction}_presence"
+
+    @property
+    def should_poll(self):
+        """No polling needed for a demo switch."""
+        return False
+
+    @property
+    def icon(self):
+        """Return the icon to use for device if any."""
+        return self._icon
+
+    def turn_on(self, **kwargs):
+        """Enable presence automation on the parent light controller."""
+        self.hass.bus.fire(
+            SENDDOMAIN, dict(uuid=self.uuidAction, value="presence/1")
+        )
+        self._attr_is_on = True
+        self.schedule_update_ha_state()
+
+    def turn_off(self, **kwargs):
+        """Disable presence automation on the parent light controller."""
+        self.hass.bus.fire(
+            SENDDOMAIN, dict(uuid=self.uuidAction, value="presence/0")
+        )
+        self._attr_is_on = False
+        self.schedule_update_ha_state()
+
+    async def event_handler(self, event):
+        if self._presence_uuid in event.data:
+            self._attr_is_on = bool(event.data[self._presence_uuid])
+            if not self._attr_available:
+                self._attr_available = True
+            self.async_schedule_update_ha_state()
+
+    @property
+    def extra_state_attributes(self):
+        """Return device specific state attributes.
+
+        Implemented by platform classes.
+        """
+        return {
+            "uuid": self.uuidAction,
+            "state_uuid": self._presence_uuid,
             "room": self.room,
             "category": self.cat,
             "device_type": self.type,
