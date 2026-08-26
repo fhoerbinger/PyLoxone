@@ -20,7 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (CONF_DEVICE_CLASS, CONF_NAME,
                                  CONF_UNIT_OF_MEASUREMENT, CONF_VALUE_TEMPLATE,
                                  LIGHT_LUX, PERCENTAGE, STATE_UNKNOWN,
-                                 UnitOfEnergy, UnitOfPower, UnitOfRatio,
+                                 UnitOfEnergy, UnitOfPower,
                                  UnitOfSpeed, UnitOfTemperature, UnitOfVolume,
                                  UnitOfVolumeFlowRate)
 from homeassistant.core import HomeAssistant, callback
@@ -120,7 +120,9 @@ SENSOR_TYPES: tuple[LoxoneEntityDescription, ...] = (
     ),
     LoxoneEntityDescription(
         key="carbon_dioxide",
-        loxone_format_strings=(UnitOfRatio.PARTS_PER_MILLION,),
+        # "ppm" is UnitOfRatio.PARTS_PER_MILLION's value; imported as a
+        # literal since UnitOfRatio isn't available on all HA core versions.
+        loxone_format_strings=("ppm",),
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.CO2,
     ),
