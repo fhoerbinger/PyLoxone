@@ -324,7 +324,10 @@ class LoxoneLightControllerPresenceSwitch(LoxoneEntity, SwitchEntity):
 
     async def event_handler(self, event):
         if self._presence_uuid in event.data:
-            self._attr_is_on = bool(event.data[self._presence_uuid])
+            # Loxone reports this as a numeric 0.0/1.0, sometimes as a
+            # string - bool() alone would treat the string "0.0" as
+            # truthy, so go through float() first.
+            self._attr_is_on = bool(float(event.data[self._presence_uuid]))
             if not self._attr_available:
                 self._attr_available = True
             self.async_schedule_update_ha_state()
