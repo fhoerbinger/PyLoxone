@@ -8,8 +8,6 @@ https://github.com/JoDehli/PyLoxone
 import asyncio
 import logging
 import re
-import sys
-import traceback
 from functools import cached_property
 
 import homeassistant.components.group as group
@@ -670,9 +668,12 @@ class LoxoneEntity(Entity):
                     setattr(self, key, kwargs[key])
                 except AttributeError:
                     _LOGGER.error(f"Could set {key} for {self.name}")
-                except (Exception,):
-                    traceback.print_exc()
-                    sys.exit(-1)
+                except Exception:
+                    _LOGGER.exception(
+                        "Could not set %s for entity (uuid=%s)",
+                        key,
+                        kwargs.get("uuidAction", ""),
+                    )
 
         self.listener = None
 
